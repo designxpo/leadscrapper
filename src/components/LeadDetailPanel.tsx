@@ -110,7 +110,7 @@ export default function LeadDetailPanel() {
 
       {/* Slide-in panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-[420px] z-50 flex flex-col bg-[#0e0e14] border-l border-white/10 transition-transform duration-300 ease-out ${
+        className={`fixed top-0 right-0 h-full w-full sm:w-[420px] z-50 flex flex-col bg-[#0e0e14] border-l border-white/10 transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >

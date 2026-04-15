@@ -88,8 +88,12 @@ export default function LeadsTable() {
         </div>
       </div>
 
-      {/* Column Headers */}
-      <div className="grid grid-cols-[2fr_2fr_80px_3fr_20px] px-4 py-2.5 bg-black/40 border-b border-white/10 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0">
+
+      {/* Data Container with horizontal scroll */}
+      <div className="flex-1 flex flex-col overflow-x-auto">
+        <div className="min-w-[800px] flex flex-col h-full">
+          {/* Column Headers */}
+          <div className="grid grid-cols-[2fr_2fr_80px_3fr_20px] px-4 py-2.5 bg-black/40 border-b border-white/10 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0">
         <span>Business Name</span>
         <span>Contact Info</span>
         <span>Tier</span>
@@ -180,6 +184,8 @@ export default function LeadsTable() {
             })}
           </div>
         )}
+      </div>
+        </div>
       </div>
     </div>
   );
