@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Zap, Database, AlertCircle } from "lucide-react";
+import { Loader2, Zap, Database, AlertCircle, LogOut } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
 import { useLeadStore } from "@/store/useLeadStore";
 import {
   SCRAPER_REGISTRY,
@@ -305,6 +306,7 @@ function DynamicField({
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 
 export default function ConfigSidebar() {
+  const { user, signOut } = useAuth();
   const {
     apiKey,          setApiKey,
     geminiApiKey,    setGeminiApiKey,
@@ -318,6 +320,9 @@ export default function ConfigSidebar() {
     minSignals,      setMinSignals,
     status,          generate,
   } = useLeadStore();
+
+  const userInitial = (user?.user_metadata?.full_name?.[0] ?? user?.email?.[0] ?? "U").toUpperCase();
+  const userName = user?.user_metadata?.full_name || user?.email || "User";
 
   // Per-field validation error messages, keyed by field.key
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -419,7 +424,26 @@ export default function ConfigSidebar() {
             Data Extraction Dashboard
           </p>
         </div>
-        <span className="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse shadow-[0_0_6px_rgba(217,70,239,0.8)]" />
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-fuchsia-500 animate-pulse shadow-[0_0_6px_rgba(217,70,239,0.8)]" />
+        </div>
+      </div>
+
+      {/* ── User Bar ──────────────────────────────────────────────────────── */}
+      <div className="px-5 py-2.5 border-b border-white/5 flex items-center justify-between bg-black/20">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-fuchsia-600 to-purple-700 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-[0_0_10px_rgba(217,70,239,0.3)]">
+            {userInitial}
+          </div>
+          <span className="text-xs text-zinc-400 truncate">{userName}</span>
+        </div>
+        <button
+          onClick={signOut}
+          title="Sign out"
+          className="p-1.5 rounded-lg hover:bg-white/8 text-zinc-600 hover:text-rose-400 transition-colors"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* ── Scrollable Form ───────────────────────────────────────────────── */}
