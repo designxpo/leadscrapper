@@ -122,9 +122,30 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#141416] text-foreground;
+    background-image: radial-gradient(circle at 15% 50%, rgba(25, 25, 35, 0.8), transparent 50%),
+                      radial-gradient(circle at 85% 30%, rgba(30, 20, 40, 0.6), transparent 50%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-[#1a1a24]/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+  .glass-sidebar {
+    @apply bg-[#1a1a24]/50 backdrop-blur-md border-r border-white/10 shadow-xl;
+  }
+  .neon-text {
+    @apply text-[#d946ef] drop-shadow-[0_0_8px_rgba(217,70,239,0.6)];
+  }
+  .neon-border {
+    @apply border-[#d946ef]/60 shadow-[0_0_12px_rgba(217,70,239,0.3)];
+  }
+  .neon-glow {
+    box-shadow: 0 0 15px rgba(217, 70, 239, 0.5);
   }
 }
