@@ -88,7 +88,7 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   // Defaults
   apiKey: "",
   geminiApiKey: "",
-  newsApiKey: "",
+  newsApiKey: process.env.NEXT_PUBLIC_NEWS_API_KEY || "",
 
   selectedSource: "google_maps",
   dynamicPayload: {},
