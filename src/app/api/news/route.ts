@@ -20,22 +20,38 @@ export async function POST(req: NextRequest) {
   if (!newsApiKey) return NextResponse.json({ error: "NewsAPI key required" }, { status: 400 });
   if (!companyName) return NextResponse.json({ error: "Company name required" }, { status: 400 });
 
-  const params = new URLSearchParams({
-    q:        `"${companyName}"`,
-    pageSize: "3",
-    sortBy:   "publishedAt",
-    language: "en",
-    apiKey:   newsApiKey,
-  });
-
-  try {
+  // Try exact-match first (best precision); if 0 results, fall back to broad search.
+  async function search(query: string) {
+    const params = new URLSearchParams({
+      q:        query,
+      pageSize: "3",
+      sortBy:   "publishedAt",
+      language: "en",
+      apiKey:   newsApiKey,
+    });
     const res = await fetch(`https://newsapi.org/v2/everything?${params}`, {
-      next: { revalidate: 3600 }, // cache per company for 1 hour
+      next: { revalidate: 3600 },
     });
     const data = await res.json();
+    return { res, data };
+  }
+
+  try {
+    let { res, data } = await search(`"${companyName}"`);
 
     if (!res.ok || data.status === "error") {
-      return NextResponse.json({ articles: [], error: data.message ?? "NewsAPI error" });
+      return NextResponse.json(
+        { articles: [], error: data.message ?? `NewsAPI error (HTTP ${res.status})` },
+        { status: res.status >= 400 ? res.status : 200 }
+      );
+    }
+
+    // Fallback to unquoted query if exact match returned nothing
+    if ((data.totalResults ?? 0) === 0) {
+      const fallback = await search(companyName);
+      if (fallback.res.ok && fallback.data.status !== "error") {
+        data = fallback.data;
+      }
     }
 
     const articles: NewsArticle[] = (data.articles ?? []).map(
@@ -48,8 +64,11 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    return NextResponse.json({ articles });
+    return NextResponse.json({ articles, totalResults: data.totalResults ?? 0 });
   } catch (err: unknown) {
-    return NextResponse.json({ articles: [], error: String(err) });
+    return NextResponse.json(
+      { articles: [], error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
   }
 }

@@ -1,10 +1,12 @@
 import { create } from "zustand";
 import type { RawLead } from "@/app/api/scrape/route";
 import type { NewsArticle } from "@/app/api/news/route";
+import type { ResearchProfile } from "@/app/api/enrich/route";
 import { scoreLeads, type ScoredLead } from "@/lib/scoreLead";
 import { SCRAPER_REGISTRY } from "@/config/scraperRegistry";
+import { supabase } from "@/lib/supabase";
 
-export type { RawLead, ScoredLead };
+export type { RawLead, ScoredLead, ResearchProfile };
 
 export type ProcessingStatus = "idle" | "scraping" | "enriching" | "exporting" | "done";
 
@@ -16,6 +18,7 @@ export type LogEntry = {
 
 export type EnrichedLead = ScoredLead & {
   articles?: NewsArticle[];
+  profile?: ResearchProfile;
 };
 
 type LeadStore = {
@@ -86,7 +89,7 @@ export function timestamp(): string {
 
 export const useLeadStore = create<LeadStore>((set, get) => ({
   // Defaults
-  apiKey: "",
+  apiKey: process.env.NEXT_PUBLIC_APIFY_API_KEY || "",
   geminiApiKey: "",
   newsApiKey: process.env.NEXT_PUBLIC_NEWS_API_KEY || "",
 
@@ -191,23 +194,31 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     pushLog({ time: timestamp(), msg: "Scoring leads: Hot / Warm / Cold...", type: "info" });
 
     let scored: EnrichedLead[] = scoreLeads(rawLeads);
+    const rawCount   = scored.length;
+    const beforeFilter = rawCount;
 
     const minCount = minSignals === "any" ? 0 : minSignals === "1+" ? 1 : minSignals === "2+" ? 2 : 3;
     if (minCount > 0) {
       scored = scored.filter((l) => [l.email, l.phone, l.website].filter(Boolean).length >= minCount);
     }
+    const afterSignals = scored.length;
+
     if (targetStrategy === "strict") {
       scored = scored.filter((l) => l.tier === "hot");
     } else if (targetStrategy === "balanced") {
       scored = scored.filter((l) => l.tier === "hot" || l.tier === "warm");
     }
+    const afterStrategy = scored.length;
 
     const hot  = scored.filter((l) => l.tier === "hot").length;
     const warm = scored.filter((l) => l.tier === "warm").length;
     const cold = scored.filter((l) => l.tier === "cold").length;
 
-    pushLog({ time: timestamp(), msg: `Strategy: ${targetStrategy} · ${minSignals} signals → ${scored.length} qualified leads`, type: "info" });
-    pushLog({ time: timestamp(), msg: `Identified ${hot} Hot, ${warm} Warm, ${cold} Cold leads.`, type: "success" });
+    const droppedBySignals  = beforeFilter - afterSignals;
+    const droppedByStrategy = afterSignals - afterStrategy;
+
+    pushLog({ time: timestamp(), msg: `Filter: ${rawCount} raw → ${afterSignals} after "${minSignals}" signals (dropped ${droppedBySignals}) → ${afterStrategy} after "${targetStrategy}" strategy (dropped ${droppedByStrategy})`, type: "info" });
+    pushLog({ time: timestamp(), msg: `Final: ${hot} Hot, ${warm} Warm, ${cold} Cold.`, type: "success" });
 
     // ── Phase 3: News + AI enrichment ─────────────────────────────────────
     if (aiLines && geminiApiKey) {
@@ -221,6 +232,9 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       });
 
       let done = 0;
+      let newsHits = 0;
+      let newsErrors = 0;
+      let firstNewsError: string | null = null;
 
       const enriched: EnrichedLead[] = await Promise.all(
         scored.map(async (lead) => {
@@ -235,9 +249,12 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
                 body: JSON.stringify({ companyName: lead.name, newsApiKey }),
               });
               const nd = await nr.json();
+              if (nd.error && !firstNewsError) firstNewsError = nd.error;
               articles = nd.articles ?? [];
-            } catch {
-              // news is optional — silently skip
+              if (articles.length > 0) newsHits++;
+            } catch (err) {
+              newsErrors++;
+              if (!firstNewsError) firstNewsError = err instanceof Error ? err.message : String(err);
             }
           }
 
@@ -250,9 +267,14 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
             const ed = await er.json();
             done++;
             if (done % 5 === 0 || done === targets.length) {
-              pushLog({ time: timestamp(), msg: `AI lines generated: ${done}/${targets.length}`, type: "info" });
+              pushLog({ time: timestamp(), msg: `Profiles enriched: ${done}/${targets.length}`, type: "info" });
             }
-            return { ...lead, aiLine: ed.aiLine ?? "", articles };
+            return {
+              ...lead,
+              aiLine: ed.aiLine ?? "",
+              profile: ed.profile as ResearchProfile | undefined,
+              articles,
+            };
           } catch {
             return { ...lead, articles };
           }
@@ -260,6 +282,13 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       );
 
       scored = enriched;
+      if (hasNews) {
+        pushLog({
+          time: timestamp(),
+          msg: `News: ${newsHits}/${targets.length} leads had articles${newsErrors > 0 ? `, ${newsErrors} request errors` : ""}${firstNewsError ? ` — ${firstNewsError}` : ""}`,
+          type: newsErrors > 0 || (newsHits === 0 && firstNewsError) ? "warn" : "info",
+        });
+      }
       pushLog({ time: timestamp(), msg: "AI personalization complete.", type: "success" });
     } else if (aiLines && !geminiApiKey) {
       pushLog({ time: timestamp(), msg: "AI Lines skipped — Gemini API key not provided.", type: "warn" });
@@ -276,9 +305,20 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
         hour: "2-digit", minute: "2-digit",
       })}`;
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        pushLog({ time: timestamp(), msg: "Campaign save skipped — not signed in.", type: "warn" });
+        pushLog({ time: timestamp(), msg: "All leads ready.", type: "success" });
+        setStatus("done");
+        return;
+      }
+
       const res = await fetch("/api/campaigns", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           name:   campaignName,
           source: selectedSource,
@@ -291,7 +331,10 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
             address:     l.address,
             rating:      l.rating,
             source_url:  l.source_url ?? null,
-            extra_data:  l.extra_data ?? null,
+            extra_data:  {
+              ...(l.extra_data ?? {}),
+              ...(l.profile ? { profile: l.profile } : {}),
+            },
             platform:    l.platform ?? null,
             description: l.description ?? null,
             budget:      l.budget ?? null,

@@ -41,17 +41,17 @@ export const SCRAPER_REGISTRY: Record<string, ScraperDef> = {
     apifyActorId: "compass/google-maps-extractor",
     inputs: [
       {
-        key: "searchTerms", apifyKey: "searchTerms",
+        key: "searchTerms", apifyKey: "searchStringsArray",
         label: "Niche / Keywords", type: "text", required: true,
         placeholder: "Dentists, Plumbers...",
       },
       {
-        key: "location", apifyKey: "location",
+        key: "location", apifyKey: "locationQuery",
         label: "City & State", type: "text", required: true,
         placeholder: "Austin, TX",
       },
       {
-        key: "maxResults", apifyKey: "maxResults",
+        key: "maxResults", apifyKey: "maxCrawledPlacesPerSearch",
         label: "Max Leads", type: "number", required: true,
         default: 50,
       },

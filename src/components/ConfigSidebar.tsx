@@ -386,7 +386,9 @@ export default function ConfigSidebar() {
       if (
         field.type === "text" &&
         typeof value === "string" &&
-        (field.apifyKey === "usernames" || field.apifyKey === "queries")
+        (field.apifyKey === "usernames" ||
+          field.apifyKey === "queries" ||
+          field.apifyKey === "searchStringsArray")
       ) {
         value = value
           .split(",")

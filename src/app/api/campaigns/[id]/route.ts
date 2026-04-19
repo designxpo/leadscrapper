@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
-// ─── GET /api/campaigns/[id] ─────────────────────────────────────────────────
-// Returns a single campaign with all its leads.
+function scopedClient(req: NextRequest) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+}
 
-export async function GET(_req: NextRequest, ctx: RouteCtx) {
+// ─── GET /api/campaigns/[id] ─────────────────────────────────────────────────
+
+export async function GET(req: NextRequest, ctx: RouteCtx) {
   const { id } = await ctx.params;
+  const supabase = scopedClient(req);
 
   const { data: campaign, error: campErr } = await supabase
     .from("campaigns")
@@ -36,7 +45,6 @@ export async function GET(_req: NextRequest, ctx: RouteCtx) {
 }
 
 // ─── PATCH /api/campaigns/[id] ───────────────────────────────────────────────
-// Update campaign name or status (active ↔ archived).
 
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
   const { id } = await ctx.params;
@@ -46,7 +54,6 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Only allow updating specific fields
   const allowed: Record<string, unknown> = {};
   if (typeof body.name === "string")   allowed.name   = body.name;
   if (typeof body.status === "string") allowed.status = body.status;
@@ -58,6 +65,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
     );
   }
 
+  const supabase = scopedClient(req);
   const { data, error } = await supabase
     .from("campaigns")
     .update(allowed)
@@ -73,10 +81,10 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 }
 
 // ─── DELETE /api/campaigns/[id] ──────────────────────────────────────────────
-// Deletes a campaign; leads cascade-delete via FK.
 
-export async function DELETE(_req: NextRequest, ctx: RouteCtx) {
+export async function DELETE(req: NextRequest, ctx: RouteCtx) {
   const { id } = await ctx.params;
+  const supabase = scopedClient(req);
 
   const { error } = await supabase
     .from("campaigns")

@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   X, Globe, Mail, Phone, MapPin, Star, Briefcase,
   Calendar, DollarSign, Newspaper, ExternalLink, Sparkles,
+  User, Building2, Globe2, Target, TrendingUp, Flag,
 } from "lucide-react";
+import type { ResearchProfile } from "@/app/api/enrich/route";
 
 const TIER_STYLES = {
   hot:  { label: "HOT",  badge: "bg-rose-500/20 text-rose-400 border-rose-500/40", glow: "shadow-[0_0_20px_rgba(251,113,133,0.15)]" },
@@ -188,6 +190,9 @@ function PanelContent({ lead, onClose }: { lead: EnrichedLead; onClose: () => vo
           </section>
         )}
 
+        {/* Research Profile — 7-section B2B qualification */}
+        {lead.profile && <ProfileSections profile={lead.profile} />}
+
         {/* News Articles */}
         {lead.articles && lead.articles.length > 0 && (
           <section>
@@ -233,6 +238,203 @@ function PanelContent({ lead, onClose }: { lead: EnrichedLead; onClose: () => vo
           </a>
         )}
       </div>
+    </>
+  );
+}
+
+// ─── Research profile rendering ──────────────────────────────────────────────
+
+const DASH = "—";
+
+function isEmpty(v: unknown): boolean {
+  if (v == null) return true;
+  if (typeof v === "string") return v.trim() === "" || v.trim() === DASH;
+  if (typeof v === "number") return v === 0;
+  return false;
+}
+
+function ConfidencePill({ level }: { level?: "High" | "Medium" | "Low" }) {
+  if (!level) return null;
+  const styles = {
+    High:   "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    Medium: "bg-amber-500/15  text-amber-400   border-amber-500/30",
+    Low:    "bg-rose-500/15   text-rose-400    border-rose-500/30",
+  }[level];
+  return (
+    <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded border ${styles}`}>
+      {level}
+    </span>
+  );
+}
+
+function ProfileRow({
+  label, value, keyPath, confidence, verifyFlags,
+}: {
+  label: string;
+  value: string | number;
+  keyPath: string;
+  confidence: Record<string, "High" | "Medium" | "Low">;
+  verifyFlags: string[];
+}) {
+  if (isEmpty(value)) return null;
+  const needsVerify = verifyFlags.includes(keyPath);
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5 border-b border-white/5 last:border-0">
+      <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wider shrink-0 pt-0.5">
+        {label}
+      </span>
+      <div className="flex items-center gap-1.5 text-right min-w-0 flex-1 justify-end">
+        <span className="text-xs text-zinc-200 break-words">{String(value)}</span>
+        {needsVerify && (
+          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/30 shrink-0">
+            Verify
+          </span>
+        )}
+        <ConfidencePill level={confidence[keyPath]} />
+      </div>
+    </div>
+  );
+}
+
+function ProfileBlock({
+  title, icon: Icon, rows, keyPrefix, confidence, verifyFlags,
+}: {
+  title: string;
+  icon: React.ElementType;
+  rows: { label: string; key: string; value: string | number }[];
+  keyPrefix: string;
+  confidence: Record<string, "High" | "Medium" | "Low">;
+  verifyFlags: string[];
+}) {
+  const nonEmpty = rows.filter((r) => !isEmpty(r.value));
+  if (nonEmpty.length === 0) return null;
+  return (
+    <section>
+      <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+        <Icon className="h-3 w-3" /> {title}
+      </p>
+      <div className="rounded-lg border border-white/8 bg-white/3 px-3 py-1.5">
+        {nonEmpty.map((r) => (
+          <ProfileRow
+            key={r.key}
+            label={r.label}
+            value={r.value}
+            keyPath={`${keyPrefix}.${r.key}`}
+            confidence={confidence}
+            verifyFlags={verifyFlags}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProfileSections({ profile }: { profile: ResearchProfile }) {
+  const cf = profile.confidence ?? {};
+  const vf = profile.verify_flags ?? [];
+
+  const icp = profile.quality?.icp_match_score ?? 0;
+  const icpBadge = icp >= 4
+    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+    : icp >= 3
+      ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+      : "bg-rose-500/15 text-rose-400 border-rose-500/30";
+
+  return (
+    <>
+      {icp > 0 && (
+        <section>
+          <div className={`rounded-lg border px-3 py-2 flex items-center justify-between ${icpBadge}`}>
+            <span className="text-[10px] font-semibold uppercase tracking-widest">ICP Match</span>
+            <span className="text-base font-bold">{icp}/5</span>
+          </div>
+        </section>
+      )}
+
+      <ProfileBlock
+        title="Identity" icon={User} keyPrefix="identity"
+        confidence={cf} verifyFlags={vf}
+        rows={[
+          { label: "Full Name",    key: "full_name",    value: profile.identity.full_name },
+          { label: "Job Title",    key: "job_title",    value: profile.identity.job_title },
+          { label: "Seniority",    key: "seniority",    value: profile.identity.seniority },
+          { label: "Department",   key: "department",   value: profile.identity.department },
+          { label: "LinkedIn",     key: "linkedin_url", value: profile.identity.linkedin_url },
+        ]}
+      />
+
+      <ProfileBlock
+        title="Company" icon={Building2} keyPrefix="company"
+        confidence={cf} verifyFlags={vf}
+        rows={[
+          { label: "Name",       key: "name",             value: profile.company.name },
+          { label: "Website",    key: "website",          value: profile.company.website },
+          { label: "Industry",   key: "industry",         value: profile.company.industry },
+          { label: "Size",       key: "size",             value: profile.company.size },
+          { label: "Revenue",    key: "revenue_estimate", value: profile.company.revenue_estimate },
+          { label: "Funding",    key: "funding_stage",    value: profile.company.funding_stage },
+        ]}
+      />
+
+      <ProfileBlock
+        title="Geography" icon={Globe2} keyPrefix="geography"
+        confidence={cf} verifyFlags={vf}
+        rows={[
+          { label: "City/Region", key: "city_region", value: profile.geography.city_region },
+          { label: "Country",     key: "country",     value: profile.geography.country },
+          { label: "Timezone",    key: "timezone",    value: profile.geography.timezone },
+          { label: "Language",    key: "language",    value: profile.geography.language },
+          { label: "Market",      key: "market_type", value: profile.geography.market_type },
+        ]}
+      />
+
+      <ProfileBlock
+        title="Contact" icon={Phone} keyPrefix="contact"
+        confidence={cf} verifyFlags={vf}
+        rows={[
+          { label: "Work Email",     key: "work_email",         value: profile.contact.work_email },
+          { label: "Verified",       key: "email_verified",     value: profile.contact.email_verified },
+          { label: "Phone/WhatsApp", key: "phone_whatsapp",     value: profile.contact.phone_whatsapp },
+          { label: "Channel",        key: "preferred_channel",  value: profile.contact.preferred_channel },
+          { label: "Best Time",      key: "best_contact_time",  value: profile.contact.best_contact_time },
+        ]}
+      />
+
+      <ProfileBlock
+        title="Lead Quality" icon={Target} keyPrefix="quality"
+        confidence={cf} verifyFlags={vf}
+        rows={[
+          { label: "Source",        key: "lead_source",   value: profile.quality.lead_source },
+          { label: "Pain Point",    key: "pain_point",    value: profile.quality.pain_point },
+          { label: "Competitor",    key: "competitor",    value: profile.quality.competitor },
+          { label: "Intent Signal", key: "intent_signal", value: profile.quality.intent_signal },
+        ]}
+      />
+
+      <ProfileBlock
+        title="Outreach" icon={Flag} keyPrefix="outreach"
+        confidence={cf} verifyFlags={vf}
+        rows={[
+          { label: "Status",       key: "status",          value: profile.outreach.status },
+          { label: "Last Contact", key: "last_contact",    value: profile.outreach.last_contact },
+          { label: "Follow-up",    key: "follow_up_date",  value: profile.outreach.follow_up_date },
+          { label: "Sequence",     key: "sequence",        value: profile.outreach.sequence },
+          { label: "Touches",      key: "touch_count",     value: profile.outreach.touch_count },
+          { label: "Notes",        key: "response_notes",  value: profile.outreach.response_notes },
+        ]}
+      />
+
+      <ProfileBlock
+        title="Pipeline" icon={TrendingUp} keyPrefix="pipeline"
+        confidence={cf} verifyFlags={vf}
+        rows={[
+          { label: "Stage",     key: "stage",                value: profile.pipeline.stage },
+          { label: "Deal Est.", key: "deal_value_estimate",  value: profile.pipeline.deal_value_estimate },
+          { label: "Currency",  key: "currency",             value: profile.pipeline.currency },
+          { label: "Timeline",  key: "decision_timeline",    value: profile.pipeline.decision_timeline },
+          { label: "Owner",     key: "owner",                value: profile.pipeline.owner },
+        ]}
+      />
     </>
   );
 }

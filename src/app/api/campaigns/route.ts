@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,10 +24,20 @@ type CreateCampaignBody = {
   }[];
 };
 
-// ─── GET /api/campaigns ───────────────────────────────────────────────────────
-// Returns all campaigns ordered by most recent first.
+// Build a Supabase client scoped to the caller's JWT so RLS sees auth.uid().
+function scopedClient(req: NextRequest) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+}
 
-export async function GET() {
+// ─── GET /api/campaigns ───────────────────────────────────────────────────────
+
+export async function GET(req: NextRequest) {
+  const supabase = scopedClient(req);
   const { data, error } = await supabase
     .from("campaigns")
     .select("*")
@@ -41,7 +51,6 @@ export async function GET() {
 }
 
 // ─── POST /api/campaigns ──────────────────────────────────────────────────────
-// Creates a new campaign and bulk-inserts its leads in one transaction.
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as CreateCampaignBody | null;
@@ -53,6 +62,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const supabase = scopedClient(req);
+
+  const { data: userData, error: userErr } = await supabase.auth.getUser();
+  if (userErr || !userData.user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+  const userId = userData.user.id;
+
   // 1. Create the campaign
   const { data: campaign, error: campaignErr } = await supabase
     .from("campaigns")
@@ -61,6 +78,7 @@ export async function POST(req: NextRequest) {
       source:     body.source,
       config:     body.config ?? {},
       lead_count: body.leads.length,
+      user_id:    userId,
     })
     .select()
     .single();
@@ -97,7 +115,6 @@ export async function POST(req: NextRequest) {
       .insert(leadsToInsert);
 
     if (leadsErr) {
-      // Campaign was created but leads failed — return partial success
       return NextResponse.json(
         {
           campaign,

@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 type RouteCtx = { params: Promise<{ id: string }> };
+
+function scopedClient(req: NextRequest) {
+  const authHeader = req.headers.get("authorization") ?? "";
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+}
 
 const VALID_CRM_STATUSES = ["new", "contacted", "replied", "converted"] as const;
 
@@ -45,6 +54,7 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
     );
   }
 
+  const supabase = scopedClient(req);
   const { data, error } = await supabase
     .from("leads")
     .update(allowed)

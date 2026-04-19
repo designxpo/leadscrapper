@@ -18,7 +18,7 @@ export default function Home() {
         </div>
 
         {/* Right Column — Dashboard (w-2/3) */}
-        <div className="flex-1 flex flex-col h-[80vh] lg:h-full overflow-hidden p-4 sm:p-6 gap-4 sm:gap-5">
+        <div className="flex-1 flex flex-col min-h-0 h-[80vh] lg:h-full overflow-hidden p-4 sm:p-6 gap-4 sm:gap-5">
           {/* Pipeline Log Terminal */}
           <div className="h-40 sm:h-48 flex-shrink-0">
             <PipelineLog />
@@ -30,7 +30,7 @@ export default function Home() {
           </div>
 
           {/* Leads Table */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <LeadsTable />
           </div>
         </div>
