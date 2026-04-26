@@ -52,21 +52,61 @@ function normalizeData(
   switch (actorId) {
 
     // ── Google Maps Extractor ─────────────────────────────────────────────────
-    // name = title, phone = phoneUnformatted or phone, website, rating = totalScore
+    // Captures everything the actor returns that's useful for B2B outreach:
+    // categories, social profiles, hours, claimed status, location accuracy.
     case "compass/google-maps-extractor":
-      return rawItems.map((i) => ({
-        name:       str(i.title   ?? i.name)           ?? "Unknown",
-        website:    str(i.website),
-        phone:      str(i.phoneUnformatted ?? i.phone),
-        email:      str(i.email),
-        rating:     num(i.totalScore ?? i.rating),
-        address:    str(i.address  ?? i.street),
-        source_url: str(i.url     ?? i.googleUrl),
-        extra_data: {
-          reviewsCount: i.reviewsCount ?? null,
-          categoryName: i.categoryName ?? null,
-        },
-      }));
+      return rawItems.map((i) => {
+        // Social URLs sometimes nested under additionalInfo / contacts
+        const additional = (i.additionalInfo as Record<string, unknown>) ?? {};
+        const social = (i.contacts as Record<string, unknown>)
+          ?? (additional.contact as Record<string, unknown>)
+          ?? {};
+
+        // Emails: actor returns array under `emails`
+        const emails = Array.isArray(i.emails) ? (i.emails as string[]) : [];
+        // Phones: array under `phones`
+        const phones = Array.isArray(i.phones) ? (i.phones as string[]) : [];
+
+        return {
+          name:       str(i.title   ?? i.name)           ?? "Unknown",
+          website:    str(i.website),
+          phone:      str(phones[0] ?? i.phoneUnformatted ?? i.phone),
+          email:      str(emails[0] ?? i.email),
+          rating:     num(i.totalScore ?? i.rating),
+          address:    str(i.address  ?? i.street),
+          source_url: str(i.url     ?? i.googleUrl),
+          extra_data: {
+            place_id:        i.placeId ?? null,
+            categoryName:    i.categoryName ?? null,
+            categories:      Array.isArray(i.categories) ? i.categories : null,
+            reviewsCount:    i.reviewsCount ?? null,
+            phones_all:      phones.length > 1 ? phones : null,
+            emails_all:      emails.length > 1 ? emails : null,
+            opening_hours:   i.openingHours ?? null,
+            permanently_closed: i.permanentlyClosed ?? null,
+            temporarily_closed: i.temporarilyClosed ?? null,
+            claimed:         i.isAdvertisement === false ? true : null,
+            social: {
+              facebook:  str(social.facebook  ?? additional.facebook),
+              instagram: str(social.instagram ?? additional.instagram),
+              linkedin:  str(social.linkedin  ?? additional.linkedin),
+              twitter:   str(social.twitter   ?? additional.twitter),
+              youtube:   str(social.youtube   ?? additional.youtube),
+            },
+            location: {
+              lat:        (i.location as Record<string, unknown>)?.lat ?? null,
+              lng:        (i.location as Record<string, unknown>)?.lng ?? null,
+              city:       i.city ?? null,
+              state:      i.state ?? null,
+              country:    i.countryCode ?? i.country ?? null,
+              postalCode: i.postalCode ?? null,
+              neighborhood: i.neighborhood ?? null,
+            },
+            description:     str(i.description),
+          },
+          description: str(i.description ?? i.categoryName),
+        };
+      });
 
     // ── LinkedIn Company Scraper ──────────────────────────────────────────────
     // name = companyName, website = companyUrl, extra_data = employeeCount

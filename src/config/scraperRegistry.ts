@@ -12,6 +12,8 @@
 
 export type FieldType = "text" | "number" | "select" | "password";
 
+export type SelectOption = string | { value: string; label: string };
+
 export type RegistryField = {
   key: string;
   apifyKey: string;              // exact Apify actor input key
@@ -20,7 +22,8 @@ export type RegistryField = {
   required?: boolean;
   placeholder?: string;
   default?: string | number;
-  options?: string[];            // for type: "select"
+  options?: SelectOption[];      // for type: "select"
+  hint?: string;                 // small helper text under the field
 };
 
 export type ScraperDef = {
@@ -30,6 +33,49 @@ export type ScraperDef = {
   apifyActorId: string;
   inputs: RegistryField[];
 };
+
+// ─── Country list ────────────────────────────────────────────────────────────
+// ISO-3166 alpha-2 codes (lowercase) — what compass/google-maps-extractor expects.
+// Ordered by the markets event sponsorships most commonly target.
+
+const COUNTRY_OPTIONS: SelectOption[] = [
+  { value: "us", label: "United States" },
+  { value: "in", label: "India" },
+  { value: "gb", label: "United Kingdom" },
+  { value: "ca", label: "Canada" },
+  { value: "au", label: "Australia" },
+  { value: "ae", label: "United Arab Emirates" },
+  { value: "sg", label: "Singapore" },
+  { value: "de", label: "Germany" },
+  { value: "fr", label: "France" },
+  { value: "es", label: "Spain" },
+  { value: "it", label: "Italy" },
+  { value: "nl", label: "Netherlands" },
+  { value: "ie", label: "Ireland" },
+  { value: "br", label: "Brazil" },
+  { value: "mx", label: "Mexico" },
+  { value: "jp", label: "Japan" },
+  { value: "kr", label: "South Korea" },
+  { value: "za", label: "South Africa" },
+  { value: "ng", label: "Nigeria" },
+  { value: "ke", label: "Kenya" },
+  { value: "id", label: "Indonesia" },
+  { value: "ph", label: "Philippines" },
+  { value: "th", label: "Thailand" },
+  { value: "my", label: "Malaysia" },
+  { value: "se", label: "Sweden" },
+  { value: "no", label: "Norway" },
+  { value: "dk", label: "Denmark" },
+  { value: "fi", label: "Finland" },
+  { value: "pl", label: "Poland" },
+  { value: "tr", label: "Turkey" },
+  { value: "sa", label: "Saudi Arabia" },
+  { value: "il", label: "Israel" },
+  { value: "ar", label: "Argentina" },
+  { value: "cl", label: "Chile" },
+  { value: "co", label: "Colombia" },
+  { value: "nz", label: "New Zealand" },
+];
 
 export const SCRAPER_REGISTRY: Record<string, ScraperDef> = {
 
@@ -43,16 +89,30 @@ export const SCRAPER_REGISTRY: Record<string, ScraperDef> = {
       {
         key: "searchTerms", apifyKey: "searchStringsArray",
         label: "Niche / Keywords", type: "text", required: true,
-        placeholder: "Dentists, Plumbers...",
+        placeholder: "Marketing agencies, PR firms...",
+        hint: "Comma-separated. Each term runs as a separate Google Maps search.",
       },
       {
-        key: "location", apifyKey: "locationQuery",
-        label: "City & State", type: "text", required: true,
-        placeholder: "Austin, TX",
+        key: "country", apifyKey: "countryCode",
+        label: "Country", type: "select", required: true,
+        options: COUNTRY_OPTIONS,
+        default: "us",
+      },
+      {
+        key: "state", apifyKey: "state",
+        label: "State / Region", type: "text",
+        placeholder: "California, Maharashtra, Bavaria...",
+        hint: "Optional — narrows the search within the country.",
+      },
+      {
+        key: "city", apifyKey: "city",
+        label: "City", type: "text",
+        placeholder: "Austin, Mumbai, Berlin...",
+        hint: "Optional — most precise. Leave blank to search the whole country/state.",
       },
       {
         key: "maxResults", apifyKey: "maxCrawledPlacesPerSearch",
-        label: "Max Leads", type: "number", required: true,
+        label: "Max Leads (per search)", type: "number", required: true,
         default: 50,
       },
     ],

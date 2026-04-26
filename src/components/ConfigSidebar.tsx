@@ -11,6 +11,8 @@ import {
   SCRAPER_CATEGORIES,
   type RegistryField,
 } from "@/config/scraperRegistry";
+import { MOTIVES, type Motive } from "@/config/motiveRegistry";
+import { Target } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -252,11 +254,15 @@ function DynamicField({
           disabled={disabled}
           className={baseClass}
         >
-          {field.options.map((opt) => (
-            <option key={opt} value={opt} className="bg-zinc-900">
-              {opt}
-            </option>
-          ))}
+          {field.options.map((opt) => {
+            const value = typeof opt === "string" ? opt : opt.value;
+            const label = typeof opt === "string" ? opt : opt.label;
+            return (
+              <option key={value} value={value} className="bg-zinc-900">
+                {label}
+              </option>
+            );
+          })}
         </select>
       ) : field.type === "password" ? (
         <Input
@@ -299,6 +305,10 @@ function DynamicField({
           }`}
         />
       )}
+
+      {field.hint && !hasError && (
+        <p className="text-[10px] text-zinc-600 leading-snug">{field.hint}</p>
+      )}
     </div>
   );
 }
@@ -326,6 +336,7 @@ export default function ConfigSidebar() {
 
   // Per-field validation error messages, keyed by field.key
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [activeMotiveId, setActiveMotiveId] = useState<string | null>(null);
 
   const isProcessing =
     status === "scraping" || status === "enriching" || status === "exporting";
@@ -407,7 +418,22 @@ export default function ConfigSidebar() {
   function handleSourceChange(id: string) {
     setSelectedSource(id);
     setFieldErrors({});
+    setActiveMotiveId(null);
   }
+
+  // Pick a high-level motive: auto-selects the right scraper and pre-fills query templates.
+  function handleMotivePick(motive: Motive) {
+    if (isProcessing) return;
+    setActiveMotiveId(motive.id);
+    setSelectedSource(motive.scraper);
+    setFieldErrors({});
+    // Apply prefill values so the relevant input fields are populated.
+    for (const [key, value] of Object.entries(motive.prefill)) {
+      handlePayloadChange(key, value);
+    }
+  }
+
+  const activeMotive = MOTIVES.find((m) => m.id === activeMotiveId) ?? null;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -450,6 +476,49 @@ export default function ConfigSidebar() {
 
       {/* ── Scrollable Form ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+        {/* ── 0. Goal / Motive ─────────────────────────────────────────────── */}
+        <div className="space-y-2">
+          <SectionLabel>
+            <span className="flex items-center gap-1.5">
+              <Target className="h-3 w-3 inline" /> What&apos;s your goal?
+            </span>
+          </SectionLabel>
+
+          <div className="grid grid-cols-2 gap-2">
+            {MOTIVES.map((m) => {
+              const active = activeMotive?.id === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => handleMotivePick(m)}
+                  disabled={isProcessing}
+                  className={`flex flex-col items-start gap-1 p-2.5 rounded-lg border text-left transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
+                    active
+                      ? "border-fuchsia-500/50 bg-fuchsia-500/10 shadow-[0_0_10px_rgba(217,70,239,0.15)]"
+                      : "border-white/10 bg-black/20 hover:border-white/25 hover:bg-white/5"
+                  }`}
+                >
+                  <span className="text-base leading-none">{m.icon}</span>
+                  <span className={`text-[11px] font-semibold leading-tight ${active ? "text-fuchsia-300" : "text-zinc-200"}`}>
+                    {m.label}
+                  </span>
+                  <span className="text-[9px] text-zinc-500 leading-snug">
+                    {m.description}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {activeMotive && (
+            <div className="rounded-lg border border-fuchsia-500/15 bg-fuchsia-500/5 px-3 py-2 text-[10px] text-zinc-400 leading-relaxed">
+              <span className="font-medium text-fuchsia-300">Tip:</span> {activeMotive.hint}
+            </div>
+          )}
+        </div>
+
+        <Divider />
 
         {/* ── 1. Data Source ───────────────────────────────────────────────── */}
         <div className="space-y-2">
