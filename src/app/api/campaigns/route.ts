@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { scopedClient } from "@/lib/api-utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,16 +23,6 @@ type CreateCampaignBody = {
     ai_line?: string | null;
   }[];
 };
-
-// Build a Supabase client scoped to the caller's JWT so RLS sees auth.uid().
-function scopedClient(req: NextRequest) {
-  const authHeader = req.headers.get("authorization") ?? "";
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: authHeader } } }
-  );
-}
 
 // ─── GET /api/campaigns ───────────────────────────────────────────────────────
 

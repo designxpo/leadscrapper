@@ -11,8 +11,9 @@ import {
   SCRAPER_CATEGORIES,
   type RegistryField,
 } from "@/config/scraperRegistry";
-import { MOTIVES, type Motive } from "@/config/motiveRegistry";
-import { Target } from "lucide-react";
+import { type Motive } from "@/config/motiveRegistry";
+import { DynamicField } from "@/components/sidebar/DynamicField";
+import { MotivePicker } from "@/components/sidebar/MotivePicker";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -191,128 +192,6 @@ function VolumeSlider({
   );
 }
 
-// ─── DynamicField ─────────────────────────────────────────────────────────────
-// Renders the correct HTML control for each RegistryField type.
-// Accepts an optional `error` string for inline validation feedback.
-
-function DynamicField({
-  field,
-  value,
-  onChange,
-  disabled,
-  error,
-}: {
-  field: RegistryField;
-  value: string;
-  onChange: (key: string, val: string) => void;
-  disabled?: boolean;
-  error?: string;
-}) {
-  const hasError = Boolean(error);
-
-  const baseClass = [
-    "w-full text-xs bg-black/40 rounded-lg px-3 h-9 outline-none transition-colors",
-    "disabled:opacity-40 disabled:cursor-not-allowed placeholder:text-zinc-600",
-    hasError
-      ? "border border-rose-500/60 focus:border-rose-500 text-zinc-200"
-      : "border border-white/10 focus:border-white/30 text-zinc-200",
-  ].join(" ");
-
-  // Use stored value; fall back to the field's declared default for placeholding
-  const displayValue =
-    value !== ""
-      ? value
-      : field.default !== undefined
-      ? String(field.default)
-      : "";
-
-  return (
-    <div className="space-y-1.5">
-      {/* Label row */}
-      <div className="flex items-center justify-between">
-        <Label
-          className={`text-xs ${hasError ? "text-rose-400" : "text-zinc-400"}`}
-        >
-          {field.label}
-          {field.required && (
-            <span className="text-fuchsia-500 ml-0.5">*</span>
-          )}
-        </Label>
-        {hasError && (
-          <span className="flex items-center gap-1 text-[10px] text-rose-400">
-            <AlertCircle className="h-3 w-3" />
-            {error}
-          </span>
-        )}
-      </div>
-
-      {/* Input element — driven by field.type */}
-      {field.type === "select" && field.options ? (
-        <select
-          value={displayValue}
-          onChange={(e) => onChange(field.key, e.target.value)}
-          disabled={disabled}
-          className={baseClass}
-        >
-          {field.options.map((opt) => {
-            const value = typeof opt === "string" ? opt : opt.value;
-            const label = typeof opt === "string" ? opt : opt.label;
-            return (
-              <option key={value} value={value} className="bg-zinc-900">
-                {label}
-              </option>
-            );
-          })}
-        </select>
-      ) : field.type === "password" ? (
-        <Input
-          type="password"
-          placeholder={field.placeholder ?? ""}
-          value={value}                   // never show default in password fields
-          onChange={(e) => onChange(field.key, e.target.value)}
-          disabled={disabled}
-          className={`font-mono text-xs h-9 bg-black/40 placeholder:text-zinc-600 ${
-            hasError
-              ? "border-rose-500/60 focus:border-rose-500 text-zinc-200"
-              : "border-white/10 text-zinc-200"
-          }`}
-        />
-      ) : field.type === "number" ? (
-        <Input
-          type="number"
-          placeholder={field.placeholder ?? String(field.default ?? "")}
-          value={displayValue}
-          onChange={(e) => onChange(field.key, e.target.value)}
-          disabled={disabled}
-          className={`text-xs h-9 bg-black/40 placeholder:text-zinc-600 ${
-            hasError
-              ? "border-rose-500/60 focus:border-rose-500 text-zinc-200"
-              : "border-white/10 text-zinc-200"
-          }`}
-        />
-      ) : (
-        /* default: text */
-        <Input
-          type="text"
-          placeholder={field.placeholder ?? ""}
-          value={displayValue}
-          onChange={(e) => onChange(field.key, e.target.value)}
-          disabled={disabled}
-          className={`text-xs h-9 bg-black/40 placeholder:text-zinc-600 ${
-            hasError
-              ? "border-rose-500/60 focus:border-rose-500 text-zinc-200"
-              : "border-white/10 text-zinc-200"
-          }`}
-        />
-      )}
-
-      {field.hint && !hasError && (
-        <p className="text-[10px] text-zinc-600 leading-snug">{field.hint}</p>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 
 export default function ConfigSidebar() {
@@ -433,8 +312,6 @@ export default function ConfigSidebar() {
     }
   }
 
-  const activeMotive = MOTIVES.find((m) => m.id === activeMotiveId) ?? null;
-
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -478,45 +355,11 @@ export default function ConfigSidebar() {
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
         {/* ── 0. Goal / Motive ─────────────────────────────────────────────── */}
-        <div className="space-y-2">
-          <SectionLabel>
-            <span className="flex items-center gap-1.5">
-              <Target className="h-3 w-3 inline" /> What&apos;s your goal?
-            </span>
-          </SectionLabel>
-
-          <div className="grid grid-cols-2 gap-2">
-            {MOTIVES.map((m) => {
-              const active = activeMotive?.id === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => handleMotivePick(m)}
-                  disabled={isProcessing}
-                  className={`flex flex-col items-start gap-1 p-2.5 rounded-lg border text-left transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
-                    active
-                      ? "border-fuchsia-500/50 bg-fuchsia-500/10 shadow-[0_0_10px_rgba(217,70,239,0.15)]"
-                      : "border-white/10 bg-black/20 hover:border-white/25 hover:bg-white/5"
-                  }`}
-                >
-                  <span className="text-base leading-none">{m.icon}</span>
-                  <span className={`text-[11px] font-semibold leading-tight ${active ? "text-fuchsia-300" : "text-zinc-200"}`}>
-                    {m.label}
-                  </span>
-                  <span className="text-[9px] text-zinc-500 leading-snug">
-                    {m.description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {activeMotive && (
-            <div className="rounded-lg border border-fuchsia-500/15 bg-fuchsia-500/5 px-3 py-2 text-[10px] text-zinc-400 leading-relaxed">
-              <span className="font-medium text-fuchsia-300">Tip:</span> {activeMotive.hint}
-            </div>
-          )}
-        </div>
+        <MotivePicker
+          activeMotiveId={activeMotiveId}
+          onPick={handleMotivePick}
+          disabled={isProcessing}
+        />
 
         <Divider />
 

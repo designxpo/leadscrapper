@@ -236,50 +236,59 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
       let newsErrors = 0;
       let firstNewsError: string | null = null;
 
-      const enriched: EnrichedLead[] = await Promise.all(
-        scored.map(async (lead) => {
-          if (lead.tier !== "hot" && lead.tier !== "warm") return lead;
+      // Process in batches of 5 to avoid overwhelming the browser connection pool
+      // and triggering rate limits on the enrichment API.
+      const BATCH_SIZE = 5;
+      const enriched: EnrichedLead[] = new Array(scored.length);
 
-          let articles: NewsArticle[] = [];
-          if (hasNews) {
+      for (let i = 0; i < scored.length; i += BATCH_SIZE) {
+        const batch = scored.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (lead) => {
+            if (lead.tier !== "hot" && lead.tier !== "warm") return lead;
+
+            let articles: NewsArticle[] = [];
+            if (hasNews) {
+              try {
+                const nr = await fetch("/api/news", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ companyName: lead.name, newsApiKey }),
+                });
+                const nd = await nr.json();
+                if (nd.error && !firstNewsError) firstNewsError = nd.error;
+                articles = nd.articles ?? [];
+                if (articles.length > 0) newsHits++;
+              } catch (err) {
+                newsErrors++;
+                if (!firstNewsError) firstNewsError = err instanceof Error ? err.message : String(err);
+              }
+            }
+
             try {
-              const nr = await fetch("/api/news", {
+              const er = await fetch("/api/enrich", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ companyName: lead.name, newsApiKey }),
+                body: JSON.stringify({ lead, geminiApiKey, articles }),
               });
-              const nd = await nr.json();
-              if (nd.error && !firstNewsError) firstNewsError = nd.error;
-              articles = nd.articles ?? [];
-              if (articles.length > 0) newsHits++;
-            } catch (err) {
-              newsErrors++;
-              if (!firstNewsError) firstNewsError = err instanceof Error ? err.message : String(err);
+              const ed = await er.json();
+              done++;
+              if (done % 5 === 0 || done === targets.length) {
+                pushLog({ time: timestamp(), msg: `Profiles enriched: ${done}/${targets.length}`, type: "info" });
+              }
+              return {
+                ...lead,
+                aiLine: ed.aiLine ?? "",
+                profile: ed.profile as ResearchProfile | undefined,
+                articles,
+              };
+            } catch {
+              return { ...lead, articles };
             }
-          }
-
-          try {
-            const er = await fetch("/api/enrich", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ lead, geminiApiKey, articles }),
-            });
-            const ed = await er.json();
-            done++;
-            if (done % 5 === 0 || done === targets.length) {
-              pushLog({ time: timestamp(), msg: `Profiles enriched: ${done}/${targets.length}`, type: "info" });
-            }
-            return {
-              ...lead,
-              aiLine: ed.aiLine ?? "",
-              profile: ed.profile as ResearchProfile | undefined,
-              articles,
-            };
-          } catch {
-            return { ...lead, articles };
-          }
-        })
-      );
+          })
+        );
+        batchResults.forEach((result, j) => { enriched[i + j] = result; });
+      }
 
       scored = enriched;
       if (hasNews) {
