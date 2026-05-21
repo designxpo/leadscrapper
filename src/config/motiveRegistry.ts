@@ -60,11 +60,45 @@ export const MOTIVES: Motive[] = [
     hint: "Companies posting jobs are spending money. Great time to pitch.",
   },
   {
+    id: "re_buyers_india",
+    label: "Property Buyers / Tenants (India)",
+    description: "OLX India, MagicBricks, 99acres buyer requirements",
+    icon: "🔑",
+    scraper: "olx_india_buyers",
+    prefill: { olxCity: "mumbai", olxIntent: "buy" },
+    hint:
+      "Select city and intent (Buy or Rent). OLX buyers post requirements with budget and area — contact via the listing link. For more leads, also try MagicBricks Buyer Requirements or 99acres Buyer Requirements scrapers (require Apify).",
+  },
+  {
+    id: "re_buyers_india_google",
+    label: "India Property Buyers (Google)",
+    description: "Find buyer/tenant posts via Google Search",
+    icon: "🔍",
+    scraper: "google_india_property_buyers",
+    prefill: {
+      queries: "looking for 2BHK flat to buy in Mumbai budget 80 lakhs",
+    },
+    hint:
+      'Use natural language — e.g. "want to buy 3BHK in Pune under 1 crore" or "looking for flat on rent in Bangalore Koramangala". Google surfaces forum posts, property portal threads, and Facebook group posts where buyers state their exact requirements.',
+  },
+  {
+    id: "re_buyers",
+    label: "Property Buyers (US/UK)",
+    description: "Craigslist 'real estate wanted' ads",
+    icon: "🏘️",
+    scraper: "craigslist_buyers",
+    prefill: {
+      searchUrl: "https://newyork.craigslist.org/d/real-estate-wanted/search/rea",
+    },
+    hint:
+      'Change "newyork" in the URL to your target city\'s Craigslist subdomain (chicago, losangeles, london, etc.). Buyers post their budget, area, and requirements — contact them via the Craigslist relay link on each post.',
+  },
+  {
     id: "real_estate",
-    label: "Real Estate Leads",
+    label: "Property Listings",
     description: "Property listings on Zillow",
     icon: "🏡",
-    scraper: "zillow",
+    scraper: "zillow_properties",
     prefill: {},
     hint: "Search by city, neighborhood, or ZIP code.",
   },
@@ -73,7 +107,7 @@ export const MOTIVES: Motive[] = [
     label: "Influencer Outreach",
     description: "Instagram profiles by handle",
     icon: "📸",
-    scraper: "instagram",
+    scraper: "instagram_profiles",
     prefill: {},
     hint: "Comma-separated Instagram usernames.",
   },

@@ -37,7 +37,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    let { res, data } = await search(`"${companyName}"`);
+    const searchResult = await search(`"${companyName}"`);
+    const { res } = searchResult;
+    let { data } = searchResult;
 
     if (!res.ok || data.status === "error") {
       return NextResponse.json(

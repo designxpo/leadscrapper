@@ -30,6 +30,9 @@ export type ScraperDef = {
   id: string;
   category: string;
   name: string;
+  // "apify"  → runs via Apify, apifyActorId is the actor slug
+  // "direct" → custom server-side handler, apifyActorId is the handler key
+  provider?: "apify" | "direct";
   apifyActorId: string;
   inputs: RegistryField[];
 };
@@ -169,6 +172,164 @@ export const SCRAPER_REGISTRY: Record<string, ScraperDef> = {
   },
 
   // ── 4. REAL ESTATE ──────────────────────────────────────────────────────────
+
+  // ── OLX India property buyers ──────────────────────────────────────────────
+  // Direct scraper — no Apify needed. Buyers post "property wanted" ads with
+  // budget and requirements. Contact via the OLX listing URL.
+  olx_india_buyers: {
+    id:           "olx_india_buyers",
+    category:     "Real Estate India",
+    name:         "OLX India — Property Wanted Ads",
+    provider:     "direct",
+    apifyActorId: "direct/olx-india",
+    inputs: [
+      {
+        key: "olxCity", apifyKey: "startUrls",
+        label: "City", type: "select", required: true,
+        options: [
+          { value: "mumbai",     label: "Mumbai"         },
+          { value: "delhi",      label: "Delhi / NCR"    },
+          { value: "bangalore",  label: "Bangalore"      },
+          { value: "hyderabad",  label: "Hyderabad"      },
+          { value: "chennai",    label: "Chennai"        },
+          { value: "pune",       label: "Pune"           },
+          { value: "kolkata",    label: "Kolkata"        },
+          { value: "ahmedabad",  label: "Ahmedabad"      },
+          { value: "jaipur",     label: "Jaipur"         },
+          { value: "lucknow",    label: "Lucknow"        },
+          { value: "surat",      label: "Surat"          },
+          { value: "noida",      label: "Noida"          },
+          { value: "gurgaon",    label: "Gurgaon"        },
+          { value: "chandigarh", label: "Chandigarh"     },
+          { value: "kochi",      label: "Kochi"          },
+          { value: "coimbatore", label: "Coimbatore"     },
+          { value: "bhopal",     label: "Bhopal"         },
+          { value: "indore",     label: "Indore"         },
+          { value: "nagpur",     label: "Nagpur"         },
+          { value: "vadodara",   label: "Vadodara"       },
+        ],
+        default: "mumbai",
+        hint: "Select the city you want to find property buyers in.",
+      },
+      {
+        key: "olxIntent", apifyKey: "_intent",
+        label: "Intent", type: "select", required: true,
+        options: [
+          { value: "buy",  label: "Wants to Buy"  },
+          { value: "rent", label: "Wants to Rent" },
+        ],
+        default: "buy",
+        hint: "Buy = purchase seekers. Rent = tenants looking for a flat/house.",
+      },
+      {
+        key: "olxArea", apifyKey: "_area",
+        label: "Area / Neighbourhood (optional)", type: "text",
+        placeholder: "Andheri, Whitefield, Banjara Hills...",
+        hint: "Narrows results to a specific area. Leave blank for city-wide.",
+      },
+      {
+        key: "maxResults", apifyKey: "maxItems",
+        label: "Max Listings", type: "number", required: true,
+        default: 50,
+      },
+    ],
+  },
+
+  // ── MagicBricks — Buyer Requirements ───────────────────────────────────────
+  // India's largest property portal. Buyers publicly post purchase/rent
+  // requirements with budget, BHK preference, and locality.
+  // Requires Apify (headless rendering). Actor: epctex/magicbricks-scraper
+  magicbricks_buyers: {
+    id:           "magicbricks_buyers",
+    category:     "Real Estate India",
+    name:         "MagicBricks — Buyer Requirements",
+    apifyActorId: "epctex/magicbricks-scraper",
+    inputs: [
+      {
+        key: "startUrl", apifyKey: "startUrls",
+        label: "Requirements Page URL", type: "text", required: true,
+        placeholder: "https://www.magicbricks.com/buyer-requirements-in-mumbai",
+        hint: "Go to magicbricks.com → Buyer Requirements → select your city. Paste the URL here.",
+      },
+      {
+        key: "maxResults", apifyKey: "maxItems",
+        label: "Max Requirements", type: "number", required: true,
+        default: 50,
+      },
+    ],
+  },
+
+  // ── 99acres — Buyer Requirements ───────────────────────────────────────────
+  // India's 2nd-largest portal. Buyers post requirements with budget, area,
+  // and BHK. Blocks direct scraping; Apify headless actor needed.
+  // Actor: epctex/99acres-scraper
+  acres99_buyers: {
+    id:           "acres99_buyers",
+    category:     "Real Estate India",
+    name:         "99acres — Buyer Requirements",
+    apifyActorId: "epctex/99acres-scraper",
+    inputs: [
+      {
+        key: "startUrl", apifyKey: "startUrls",
+        label: "Requirements Page URL", type: "text", required: true,
+        placeholder: "https://www.99acres.com/requirement-search.html?city=4&intentType=B",
+        hint: "Go to 99acres.com → Post Requirement or search requirements for your city. Paste the URL.",
+      },
+      {
+        key: "maxResults", apifyKey: "maxItems",
+        label: "Max Requirements", type: "number", required: true,
+        default: 50,
+      },
+    ],
+  },
+
+  // ── Google Search — India Property Buyers ──────────────────────────────────
+  // Surfaces buyer-intent posts from forums, Facebook groups, and community
+  // threads that major portals don't index. No Apify key needed for this
+  // approach — uses the existing Google Search actor with pre-set queries.
+  google_india_property_buyers: {
+    id:           "google_india_property_buyers",
+    category:     "Real Estate India",
+    name:         "Google — India Property Buyer Posts",
+    apifyActorId: "apify/google-search-scraper",
+    inputs: [
+      {
+        key: "queries", apifyKey: "queries",
+        label: "Search Query", type: "text", required: true,
+        placeholder: "looking for 2BHK flat to buy in Mumbai budget 80 lakhs",
+        hint: 'Be specific — e.g. "want to buy 3BHK flat in Pune under 1 crore". Also try "property wanted in [city]".',
+      },
+      {
+        key: "resultsPerPage", apifyKey: "resultsPerPage",
+        label: "Results Per Page", type: "number", required: true,
+        default: 20,
+      },
+    ],
+  },
+
+  // Scrapes the "real estate wanted" section of Craigslist — these are posts
+  // from actual buyers/tenants who have self-identified with their budget,
+  // location preference, and requirements. Reply via the Craigslist relay.
+  craigslist_buyers: {
+    id:           "craigslist_buyers",
+    category:     "Real Estate",
+    name:         "Craigslist — Property Buyers",
+    apifyActorId: "apify/craigslist-scraper",
+    inputs: [
+      {
+        key: "searchUrl", apifyKey: "startUrls",
+        label: "Craigslist Search URL", type: "text", required: true,
+        placeholder: "https://newyork.craigslist.org/d/real-estate-wanted/search/rea",
+        hint: "Go to craigslist.org → Real Estate → Real Estate Wanted. Copy the full URL. Change 'newyork' to your city's Craigslist subdomain.",
+      },
+      {
+        key: "maxResults", apifyKey: "maxItems",
+        label: "Max Listings", type: "number", required: true,
+        default: 50,
+      },
+    ],
+  },
+
   zillow_properties: {
     id:           "zillow_properties",
     category:     "Real Estate",

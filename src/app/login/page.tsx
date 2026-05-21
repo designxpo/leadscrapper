@@ -44,7 +44,8 @@ export default function LoginPage() {
       if (error) {
         setError(error);
       } else {
-        router.push("/");
+        // New users go through onboarding before seeing the dashboard.
+        router.push("/onboarding");
       }
     } else {
       const { error } = await signIn(email, password);

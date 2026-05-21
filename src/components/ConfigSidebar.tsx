@@ -14,6 +14,7 @@ import {
 import { type Motive } from "@/config/motiveRegistry";
 import { DynamicField } from "@/components/sidebar/DynamicField";
 import { MotivePicker } from "@/components/sidebar/MotivePicker";
+import { goalById, roleById } from "@/config/onboardingConfig";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -210,8 +211,11 @@ export default function ConfigSidebar() {
     status,          generate,
   } = useLeadStore();
 
+  const { profile } = useAuth();
   const userInitial = (user?.user_metadata?.full_name?.[0] ?? user?.email?.[0] ?? "U").toUpperCase();
   const userName = user?.user_metadata?.full_name || user?.email || "User";
+  const userGoal = profile?.goal_id ? goalById(profile.goal_id) : null;
+  const userRole = profile?.role ? roleById(profile.role) : null;
 
   // Per-field validation error messages, keyed by field.key
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -286,6 +290,32 @@ export default function ConfigSidebar() {
           .filter(Boolean);
       }
 
+      // Craigslist startUrls: wrap the URL string into the {url} object array.
+      if (field.apifyKey === "startUrls" && field.key === "searchUrl" && typeof value === "string") {
+        value = [{ url: value.trim() }];
+      }
+
+      // OLX India: UI-only keys (_area, _intent) are consumed here, not sent to the API.
+      if (field.apifyKey === "_area" || field.apifyKey === "_intent") continue;
+      if (field.apifyKey === "startUrls" && field.key === "olxCity" && typeof value === "string") {
+        const area   = (dynamicPayload["olxArea"]   ?? "").trim().toLowerCase().replace(/\s+/g, "-");
+        const intent = (dynamicPayload["olxIntent"] ?? "buy");
+        // buy  → q-property-wanted / q-property-wanted-{area}
+        // rent → q-property-for-rent / q-property-for-rent-{area}
+        const baseQuery = intent === "rent" ? "property-for-rent" : "property-wanted";
+        const query = area ? `${baseQuery}-${area}` : baseQuery;
+        value = [{ url: `https://www.olx.in/${value}/q-${query}` }];
+      }
+
+      // MagicBricks / 99acres startUrls: wrap plain URL string into {url} object array.
+      if (
+        field.apifyKey === "startUrls" &&
+        (field.key === "startUrl") &&
+        typeof value === "string"
+      ) {
+        value = [{ url: value.trim() }];
+      }
+
       apifyPayload[field.apifyKey] = value;
     }
 
@@ -351,6 +381,21 @@ export default function ConfigSidebar() {
         </button>
       </div>
 
+      {/* ── Personalized goal banner ──────────────────────────────────────── */}
+      {userGoal && userRole && (
+        <div className="px-5 py-2 border-b border-white/5 flex items-center gap-2 bg-fuchsia-500/5">
+          <span className="text-base leading-none">{userGoal.icon}</span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-fuchsia-300 truncate">
+              {userGoal.label}
+            </p>
+            <p className="text-[9px] text-zinc-600 truncate">
+              {userRole.icon} {userRole.label}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Scrollable Form ───────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
@@ -403,17 +448,26 @@ export default function ConfigSidebar() {
         <div className="space-y-3">
           <SectionLabel>API Keys</SectionLabel>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-zinc-400">Apify Key</Label>
-            <Input
-              type="password"
-              placeholder="apify_api_••••••••••••"
-              className="font-mono text-xs bg-black/40 border-white/10 text-zinc-200 placeholder:text-zinc-600 h-9"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              disabled={isProcessing}
-            />
-          </div>
+          {scraper?.provider === "direct" ? (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+              <span className="text-emerald-400 text-base leading-none">✓</span>
+              <p className="text-[11px] text-emerald-400 leading-snug">
+                No Apify key needed — this scraper fetches data directly.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-zinc-400">Apify Key</Label>
+              <Input
+                type="password"
+                placeholder="apify_api_••••••••••••"
+                className="font-mono text-xs bg-black/40 border-white/10 text-zinc-200 placeholder:text-zinc-600 h-9"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                disabled={isProcessing}
+              />
+            </div>
+          )}
 
           {aiLines && (
             <>

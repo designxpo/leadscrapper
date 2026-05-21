@@ -4,6 +4,7 @@ import type { NewsArticle } from "@/app/api/news/route";
 import type { ResearchProfile } from "@/app/api/enrich/route";
 import { scoreLeads, type ScoredLead } from "@/lib/scoreLead";
 import { SCRAPER_REGISTRY } from "@/config/scraperRegistry";
+import { presetByGoal } from "@/config/onboardingConfig";
 import { supabase } from "@/lib/supabase";
 
 export type { RawLead, ScoredLead, ResearchProfile };
@@ -73,6 +74,11 @@ type LeadStore = {
   setScoredLeads: (leads: EnrichedLead[]) => void;
   setSelectedLead: (lead: EnrichedLead | null) => void;
 
+  // ── Profile preset ────────────────────────────────────────────────────────
+  // Atomically configures the scraper, prefill, strategy, and signal threshold
+  // from the onboarding goal the user selected. Called once on dashboard mount.
+  applyProfilePreset: (goalId: string) => void;
+
   // ── Orchestrator ──────────────────────────────────────────────────────────
   // apifyPayload: already keyed by apifyKey, built and validated by the sidebar
   generate: (apifyPayload: Record<string, unknown>) => Promise<void>;
@@ -136,6 +142,17 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
   setTargetStrategy: (v) => set({ targetStrategy: v }),
   setMinSignals:     (v) => set({ minSignals: v }),
 
+  applyProfilePreset: (goalId) => {
+    const preset = presetByGoal(goalId);
+    if (!preset) return;
+    set({
+      selectedSource: preset.scraper,
+      dynamicPayload: preset.prefill,
+      targetStrategy: preset.strategy,
+      minSignals:     preset.minSignals,
+    });
+  },
+
   setStatus:       (s) => set({ status: s }),
   pushLog:         (entry) => set((state) => ({ logs: [...state.logs, entry] })),
   clearLogs:       () => set({ logs: [] }),
@@ -157,11 +174,21 @@ export const useLeadStore = create<LeadStore>((set, get) => ({
     set({ logs: [], rawLeads: [], scoredLeads: [], selectedLead: null });
     setStatus("scraping");
 
-    pushLog({ time: timestamp(), msg: `Source: ${scraper.name} (${scraper.apifyActorId})`, type: "info" });
-    pushLog({ time: timestamp(), msg: "Actor started. This may take up to 2 minutes...", type: "info" });
+    const isDirect = scraper.provider === "direct";
+    pushLog({
+      time: timestamp(),
+      msg: `Source: ${scraper.name} (${isDirect ? "direct" : scraper.apifyActorId})`,
+      type: "info",
+    });
+    pushLog({
+      time: timestamp(),
+      msg: isDirect ? "Fetching data directly…" : "Actor started. This may take up to 2 minutes…",
+      type: "info",
+    });
 
     // ── Phase 1: Scrape ───────────────────────────────────────────────────
-    // apifyPayload is already keyed by apifyKey — no transformation needed here.
+    // Direct scrapers don't need an Apify API key; pass it anyway — the route
+    // checks actorId first and never reads apiKey for direct scrapers.
     let rawLeads: RawLead[] = [];
     try {
       const res = await fetch("/api/scrape", {
